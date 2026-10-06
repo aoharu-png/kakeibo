@@ -1,0 +1,957 @@
+<title>ポケット家計簿</title>
+<meta name="theme-color" content="#2f4b8f">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&display=swap">
+<style>
+/* Layout: one phone-width ledger column; ruled notebook list, bottom action bar, bottom sheets for forms */
+:root {
+  --paper: #eef0f3;
+  --sheet: #ffffff;
+  --ink: #1c2230;
+  --muted: #646d80;
+  --rule: #d8dce5;
+  --ai: #2f4b8f;
+  --ai-soft: #e3e9f6;
+  --shu: #b8402c;
+  --good: #2c7a57;
+  --shadow: 0 1px 2px rgb(20 30 60 / .06), 0 8px 24px rgb(20 30 60 / .08);
+  --f-body: "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", "Noto Sans CJK JP", system-ui, sans-serif;
+  --f-num: "Zen Old Mincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif CJK JP", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #11141b; --sheet: #191e28; --ink: #e6e9f0; --muted: #959eb2; --rule: #2b3241;
+    --ai: #93aaea; --ai-soft: #222c44; --shu: #ef8370; --good: #6cc39a;
+    --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 8px 24px rgb(0 0 0 / .3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #11141b; --sheet: #191e28; --ink: #e6e9f0; --muted: #959eb2; --rule: #2b3241;
+  --ai: #93aaea; --ai-soft: #222c44; --shu: #ef8370; --good: #6cc39a;
+  --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 8px 24px rgb(0 0 0 / .3);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body { background: var(--paper); color: var(--ink); font: 15px/1.6 var(--f-body); -webkit-tap-highlight-color: transparent; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
+.num { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+
+.wrap { max-width: 560px; margin: 0 auto; padding-inline: 16px; padding-block: 12px 120px; display: grid; gap: 16px; }
+
+/* month header */
+.top { display: flex; align-items: center; gap: 8px; }
+.top h1 { margin: 0; flex: 1; text-align: center; font: 700 22px/1.2 var(--f-num); letter-spacing: .02em; }
+.top h1 small { display: block; font: 500 11px/1.4 var(--f-body); color: var(--muted); letter-spacing: .08em; }
+.icon-btn { width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; display: grid; place-items: center; color: var(--ink); }
+.icon-btn:hover { background: var(--ai-soft); }
+.icon-btn svg { width: 22px; height: 22px; }
+
+/* summary */
+.summary { background: var(--sheet); border-radius: 14px; box-shadow: var(--shadow); padding: 18px 18px 16px; display: grid; gap: 14px; }
+.label { font-size: 11px; letter-spacing: .1em; color: var(--muted); font-weight: 500; }
+.spent { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.spent .big { font-size: 36px; font-weight: 700; line-height: 1.1; }
+.spent .big span { font-size: 16px; margin-left: 2px; }
+.trio { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; border-top: 1px solid var(--rule); padding-top: 12px; }
+.trio div { display: grid; gap: 2px; }
+.trio .v { font-size: 18px; font-weight: 700; }
+.pos { color: var(--good); } .neg { color: var(--shu); }
+.meter { display: grid; gap: 6px; }
+.bar { height: 8px; border-radius: 4px; background: var(--ai-soft); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--ai); border-radius: 4px; transition: width .4s; }
+.bar.over i { background: var(--shu); }
+.meter-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.link { background: none; border: 0; padding: 0; color: var(--ai); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+
+/* categories */
+.section-h { display: flex; justify-content: space-between; align-items: baseline; margin: 4px 2px -6px; }
+.section-h h2 { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--muted); }
+.cats { display: grid; gap: 10px; background: var(--sheet); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
+.cat-row { display: grid; grid-template-columns: 4.5em 1fr auto; align-items: center; gap: 10px; font-size: 13px; }
+.cat-row .bar { height: 6px; }
+.cat-row .amt { font-size: 14px; min-width: 5.5em; text-align: right; }
+
+/* ledger list */
+.ledger { background: var(--sheet); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+.day { border-top: 1px solid var(--rule); }
+.day:first-child { border-top: 0; }
+.day-h { display: flex; justify-content: space-between; padding: 10px 18px 4px; font-size: 12px; color: var(--muted); font-weight: 500; }
+.day-h .sun { color: var(--shu); } .day-h .sat { color: var(--ai); }
+.row { width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 18px; border: 0; background: none; text-align: left;
+  background-image: linear-gradient(var(--rule), var(--rule)); background-size: calc(100% - 36px) 1px; background-position: 18px 100%; background-repeat: no-repeat; }
+.row:last-child { background-image: none; }
+.row:hover { background-color: var(--ai-soft); }
+.chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--ai-soft); color: var(--ai); font-weight: 700; white-space: nowrap; }
+.chip.in { background: color-mix(in srgb, var(--good) 15%, transparent); color: var(--good); }
+.row .what { min-width: 0; }
+.row .what b { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .what small { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .amt { font-size: 17px; font-weight: 700; }
+.row .amt.in { color: var(--good); }
+.tag-r { font-size: 10px; color: var(--muted); border: 1px solid var(--rule); border-radius: 4px; padding: 0 4px; margin-left: 6px; vertical-align: 2px; }
+.empty { padding: 32px 22px; text-align: center; color: var(--muted); display: grid; gap: 8px; justify-items: center; }
+.empty strong { color: var(--ink); font-size: 16px; }
+
+.notice { background: var(--ai-soft); color: var(--ink); border-radius: 12px; padding: 12px 14px; font-size: 13px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.notice button { border: 1px solid var(--ai); background: var(--sheet); color: var(--ai); border-radius: 8px; padding: 4px 12px; font-weight: 700; font-size: 13px; }
+
+/* bottom bar */
+.dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, var(--paper) 30%); }
+.dock-in { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: 1fr auto auto; gap: 8px; }
+@media (max-width: 420px) { .dock .btn { padding: 14px 12px; font-size: 14px; } .dock .btn svg { display: none; } #scanBtn svg { display: inline; } }
+.btn { border: 0; border-radius: 12px; padding: 14px 18px; font-weight: 700; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn svg { width: 20px; height: 20px; }
+.btn.primary { background: var(--ai); color: var(--sheet); box-shadow: var(--shadow); }
+.btn.ghost { background: var(--sheet); color: var(--ai); box-shadow: var(--shadow); }
+.btn.danger { background: transparent; color: var(--shu); border: 1px solid var(--shu); }
+.btn.plain { background: transparent; color: var(--muted); }
+.btn:disabled { opacity: .5; }
+label.btn { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.vh { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); pointer-events: none; }
+
+/* sheet */
+.scrim { position: fixed; inset: 0; background: rgb(10 14 24 / .45); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
+.panel { background: var(--sheet); width: 100%; max-width: 560px; max-height: 92%; overflow-y: auto; border-radius: 18px 18px 0 0; padding: 8px 18px calc(18px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 14px; animation: up .22s ease-out; }
+@keyframes up { from { transform: translateY(30px); opacity: .6 } }
+@media (prefers-reduced-motion: reduce) { .panel { animation: none } .bar i { transition: none } }
+.grab { width: 40px; height: 4px; border-radius: 2px; background: var(--rule); justify-self: center; }
+.panel h3 { margin: 0; font-size: 17px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--paper); border-radius: 10px; padding: 3px; }
+.seg button { border: 0; background: none; padding: 8px; border-radius: 8px; font-weight: 700; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--sheet); color: var(--ink); box-shadow: var(--shadow); }
+.field { display: grid; gap: 4px; }
+.field label { font-size: 12px; color: var(--muted); font-weight: 500; display: flex; gap: 8px; align-items: center; }
+.field input, .field select, .field textarea { width: 100%; border: 1px solid var(--rule); background: var(--paper); border-radius: 10px; padding: 10px 12px; }
+.field textarea { min-height: 120px; font-size: 12px; font-family: ui-monospace, monospace; }
+.amount-in { display: flex; align-items: center; border: 1px solid var(--rule); background: var(--paper); border-radius: 10px; padding-inline: 12px; }
+.amount-in span { font: 700 20px var(--f-num); color: var(--muted); }
+.amount-in input { border: 0; background: none; font: 700 26px var(--f-num); padding: 8px 6px; font-variant-numeric: tabular-nums; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.auto { font-size: 10px; background: var(--ai-soft); color: var(--ai); border-radius: 4px; padding: 0 5px; font-weight: 700; }
+.catpick { display: flex; flex-wrap: wrap; gap: 6px; }
+.catpick button { border: 1px solid var(--rule); background: var(--paper); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
+.catpick button[aria-pressed="true"] { border-color: var(--ai); background: var(--ai); color: var(--sheet); font-weight: 700; }
+.actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.actions .grow { margin-right: auto; }
+.scan { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: center; background: var(--paper); border-radius: 12px; padding: 10px; }
+.scan img { width: 72px; height: 96px; object-fit: cover; border-radius: 6px; background: var(--rule); }
+.scan .msg { font-size: 13px; display: grid; gap: 6px; }
+.warn { color: var(--shu); font-size: 12px; }
+.switch { display: flex !important; gap: 8px; align-items: center; font-size: 13px !important; color: var(--ink) !important; }
+.switch input { width: 18px; height: 18px; accent-color: var(--ai); }
+.pricechips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.pricechips button { border: 1px solid var(--rule); background: var(--sheet); border-radius: 8px; padding: 4px 10px; font: 700 14px var(--f-num); font-variant-numeric: tabular-nums; color: var(--ink); }
+.pricechips button[aria-pressed="true"] { border-color: var(--ai); background: var(--ai-soft); color: var(--ai); }
+.items { list-style: none; margin: 0; padding: 4px 12px; background: var(--paper); border-radius: 10px; max-height: 200px; overflow: auto; }
+.items li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--rule); font-size: 13px; }
+.items li:last-child { border-bottom: 0; }
+.items li span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.items .num { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+.items .x { border: 0; background: none; color: var(--muted); font-size: 16px; padding: 0 4px; }
+details summary { font-size: 12px; color: var(--muted); cursor: pointer; }
+details pre { white-space: pre-wrap; font-size: 12px; background: var(--paper); border-radius: 8px; padding: 10px; max-height: 220px; overflow: auto; margin: 6px 0 0; }
+.hint { font-size: 12px; color: var(--muted); margin: 0; }
+.toast { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 8px 16px; border-radius: 999px; font-size: 13px; z-index: 20; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <button class="icon-btn" id="prev" aria-label="前の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1 id="month"></h1>
+    <button class="icon-btn" id="next" aria-label="次の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
+    <button class="icon-btn" id="settings" aria-label="設定"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </header>
+
+  <div id="notice"></div>
+
+  <section class="summary" aria-label="今月のまとめ">
+    <div class="spent">
+      <div><div class="label">今月の支出</div><div class="big num" id="sumOut"></div></div>
+    </div>
+    <div class="meter" id="meter"></div>
+    <div class="trio">
+      <div><span class="label">収入</span><span class="v num" id="sumIn"></span></div>
+      <div><span class="label">収支</span><span class="v num" id="sumNet"></span></div>
+    </div>
+  </section>
+
+  <div class="section-h"><h2>カテゴリ別</h2></div>
+  <section class="cats" id="cats"></section>
+
+  <div class="section-h"><h2>明細</h2><span class="label" id="count"></span></div>
+  <section class="ledger" id="ledger"></section>
+</div>
+
+<div class="dock">
+  <div class="dock-in">
+    <label class="btn primary" id="scanBtn" for="file" role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M8 9h8M8 12h8M8 15h5"/></svg>レシートを読み取る</label>
+    <button class="btn ghost" id="pasteBtn" aria-label="読み取った文字を貼り付け"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"/><path d="M9 13l2 2 4-4"/></svg>貼り付け</button>
+    <button class="btn ghost" id="addBtn" aria-label="手入力で追加"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>手入力</button>
+  </div>
+</div>
+<input type="file" id="file" accept="image/*" class="vh">
+<input type="file" id="csvFile" class="vh" accept=".csv,text/csv,text/comma-separated-values,text/plain,application/vnd.ms-excel">
+<div id="sheet"></div>
+
+<script src="vendor/tesseract.min.js"></script>
+<script src="parse.js"></script>
+<script>
+(function () {
+"use strict";
+var KEY = "kakeibo.v1";
+var OUT_CATS = ["食費", "外食", "日用品", "交通", "趣味", "交際", "衣服", "住居", "光熱費", "通信", "医療", "教育", "その他"];
+var IN_CATS = ["給料", "バイト", "仕送り", "臨時収入", "その他"];
+var WD = ["日", "月", "火", "水", "木", "金", "土"];
+var $ = function (id) { return document.getElementById(id); };
+var yen = function (n) { return n.toLocaleString("ja-JP"); };
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+function pad(n) { return (n < 10 ? "0" : "") + n; }
+function today() { var d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+/* ---------- storage (この端末のみ) ---------- */
+var storageOk = true;
+function load() {
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) return JSON.parse(raw);
+    return null;
+  } catch (e) { storageOk = false; return null; }
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { storageOk = false; renderNotice(); }
+}
+function sampleData() {
+  var d = new Date(), y = d.getFullYear(), m = d.getMonth() + 1;
+  var day = function (n) { return y + "-" + pad(m) + "-" + pad(Math.min(n, d.getDate())); };
+  return [
+    { type: "in", date: day(1), amount: 82000, cat: "バイト", store: "", memo: "9月分" },
+    { type: "out", date: day(1), amount: 54000, cat: "住居", store: "", memo: "家賃" },
+    { type: "out", date: day(2), amount: 642, cat: "食費", store: "セブン-イレブン", memo: "", receipt: true },
+    { type: "out", date: day(3), amount: 1186, cat: "日用品", store: "マツモトキヨシ", memo: "", receipt: true },
+    { type: "out", date: day(4), amount: 450, cat: "外食", store: "すき家", memo: "", receipt: true },
+    { type: "out", date: day(5), amount: 3000, cat: "交通", store: "Suica チャージ", memo: "" },
+    { type: "out", date: day(5), amount: 2380, cat: "食費", store: "イオン", memo: "", receipt: true }
+  ].map(function (e) { e.id = uid(); e.sample = true; return e; });
+}
+var state = load();
+var firstRun = !state;
+if (!state) state = { entries: sampleData(), budget: 60000 };
+if (!state.entries) state.entries = [];
+
+var cur = (function () { var d = new Date(); return { y: d.getFullYear(), m: d.getMonth() + 1 }; })();
+
+/* ---------- render ---------- */
+function monthEntries() {
+  var p = cur.y + "-" + pad(cur.m);
+  return state.entries.filter(function (e) { return e.date.slice(0, 7) === p; });
+}
+function renderNotice() {
+  var html = "";
+  if (!storageOk) html = '<div class="notice">この画面では保存できません。閉じると入力内容は消えます。</div>';
+  else if (state.entries.some(function (e) { return e.sample; }))
+    html = '<div class="notice"><span>今表示しているのはサンプルです。</span><button id="clearSample">サンプルを消して始める</button></div>';
+  $("notice").innerHTML = html;
+  var b = $("clearSample");
+  if (b) b.onclick = function () { state.entries = state.entries.filter(function (e) { return !e.sample; }); save(); render(); toast("サンプルを消しました"); };
+}
+function render() {
+  var reiwa = cur.y - 2018;
+  $("month").innerHTML = '<small>令和' + reiwa + '年</small>' + cur.y + '年' + cur.m + '月';
+  var es = monthEntries();
+  var out = 0, inc = 0, byCat = {};
+  es.forEach(function (e) {
+    if (e.type === "in") inc += e.amount;
+    else { out += e.amount; byCat[e.cat] = (byCat[e.cat] || 0) + e.amount; }
+  });
+  $("sumOut").innerHTML = yen(out) + "<span>円</span>";
+  $("sumIn").textContent = yen(inc) + "円";
+  var net = inc - out;
+  $("sumNet").textContent = (net > 0 ? "+" : "") + yen(net) + "円";
+  $("sumNet").className = "v num " + (net >= 0 ? "pos" : "neg");
+
+  var b = state.budget || 0;
+  if (b > 0) {
+    var pct = Math.min(100, out / b * 100), over = out > b;
+    $("meter").innerHTML = '<div class="bar' + (over ? " over" : "") + '"><i style="width:' + pct.toFixed(1) + '%"></i></div>' +
+      '<div class="meter-row"><span>予算 ' + yen(b) + '円</span><span class="' + (over ? "neg" : "") + '">' +
+      (over ? yen(out - b) + "円オーバー" : "残り " + yen(b - out) + "円") + '</span></div>';
+  } else {
+    $("meter").innerHTML = '<div class="meter-row"><span>月の予算は未設定です</span><button class="link" id="setBudget">予算を決める</button></div>';
+    $("setBudget").onclick = openSettings;
+  }
+
+  var cats = Object.keys(byCat).sort(function (a, c) { return byCat[c] - byCat[a]; });
+  var max = cats.length ? byCat[cats[0]] : 1;
+  $("cats").innerHTML = cats.length ? cats.map(function (c) {
+    return '<div class="cat-row"><span>' + esc(c) + '</span><div class="bar"><i style="width:' + (byCat[c] / max * 100).toFixed(1) + '%"></i></div><span class="amt num">' + yen(byCat[c]) + '円</span></div>';
+  }).join("") : '<p class="hint">支出を記録するとここに内訳が出ます。</p>';
+
+  $("count").textContent = es.length ? es.length + "件" : "";
+  if (!es.length) {
+    $("ledger").innerHTML = '<div class="empty"><strong>この月の記録はまだありません</strong><span>下の「レシートを読み取る」で写真から、または「手入力」で追加できます。カードの明細は右上の設定から取り込めます。</span></div>';
+  } else {
+    var days = {};
+    es.forEach(function (e) { (days[e.date] = days[e.date] || []).push(e); });
+    $("ledger").innerHTML = Object.keys(days).sort().reverse().map(function (d) {
+      var dt = new Date(d + "T00:00:00"), w = dt.getDay();
+      var dayOut = days[d].reduce(function (s, e) { return s + (e.type === "out" ? e.amount : 0); }, 0);
+      return '<div class="day"><div class="day-h"><span>' + (+d.slice(5, 7)) + '月' + (+d.slice(8)) + '日 <span class="' + (w === 0 ? "sun" : w === 6 ? "sat" : "") + '">(' + WD[w] + ')</span></span><span class="num">' + (dayOut ? "−" + yen(dayOut) + "円" : "") + '</span></div>' +
+        days[d].map(function (e) {
+          return '<button class="row" data-id="' + e.id + '"><span class="chip' + (e.type === "in" ? " in" : "") + '">' + esc(e.cat) + '</span>' +
+            '<span class="what"><b>' + esc(e.store || e.memo || e.cat) + (e.receipt ? '<span class="tag-r">レシート</span>' : e.card ? '<span class="tag-r">カード</span>' : "") + '</b>' +
+            (e.store && e.memo ? "<small>" + esc(e.memo) + "</small>" : "") + '</span>' +
+            '<span class="amt num' + (e.type === "in" ? " in" : "") + '">' + (e.type === "in" ? "+" : "") + yen(e.amount) + '</span></button>';
+        }).join("") + '</div>';
+    }).join("");
+  }
+  renderNotice();
+}
+$("ledger").addEventListener("click", function (ev) {
+  var r = ev.target.closest(".row");
+  if (!r) return;
+  var e = state.entries.find(function (x) { return x.id === r.dataset.id; });
+  if (e) openForm(e);
+});
+$("prev").onclick = function () { cur.m--; if (cur.m < 1) { cur.m = 12; cur.y--; } render(); };
+$("next").onclick = function () { cur.m++; if (cur.m > 12) { cur.m = 1; cur.y++; } render(); };
+
+/* ---------- sheet ---------- */
+var sheetOpen = false, ocrAbort = null;
+function openSheet(html) {
+  $("sheet").innerHTML = '<div class="scrim" id="scrim"><div class="panel" role="dialog" aria-modal="true"><div class="grab"></div>' + html + '</div></div>';
+  sheetOpen = true;
+  $("scrim").addEventListener("click", function (ev) { if (ev.target.id === "scrim") closeSheet(); });
+}
+function closeSheet() { $("sheet").innerHTML = ""; sheetOpen = false; if (ocrAbort) { ocrAbort.cancelled = true; try { if (ocrAbort.ctl) ocrAbort.ctl.abort(); } catch (e) {} } }
+window.__back = function () { if (sheetOpen) { closeSheet(); return true; } return false; };
+document.addEventListener("keydown", function (e) { if (e.key === "Escape" && sheetOpen) closeSheet(); });
+
+function toast(t) {
+  var el = document.createElement("div"); el.className = "toast"; el.textContent = t;
+  document.body.appendChild(el); setTimeout(function () { el.remove(); }, 1800);
+}
+
+/* ---------- entry form ---------- */
+var formItems = null;
+function drawItems() {
+  var box = $("itemsBox");
+  if (!box) return;
+  if (!formItems || !formItems.length) { box.hidden = true; box.innerHTML = ""; return; }
+  var sum = formItems.reduce(function (s, it) { return s + it.price; }, 0);
+  box.hidden = false;
+  box.innerHTML = '<label>品目（' + formItems.length + '件・計 ' + yen(sum) + '円）</label><ul class="items">' +
+    formItems.map(function (it, i) {
+      return '<li><span>' + esc(it.name) + '</span><span class="num">' + yen(it.price) + '</span><button type="button" class="x" data-i="' + i + '" aria-label="' + esc(it.name) + 'を外す">×</button></li>';
+    }).join("") + '</ul>';
+  box.querySelectorAll(".x").forEach(function (b) { b.onclick = function () { formItems.splice(+b.dataset.i, 1); drawItems(); }; });
+}
+function drawPriceChips(cands) {
+  var box = $("priceChips");
+  if (!box || !cands || !cands.length) return;
+  box.hidden = false;
+  box.innerHTML = '<span>読み取った金額：</span>' + cands.map(function (n) {
+    return '<button type="button" data-n="' + n + '" aria-pressed="' + (String(n) === $("fAmount").value) + '">¥' + yen(n) + '</button>';
+  }).join("");
+  box.onclick = function (ev) {
+    var b = ev.target.closest("button"); if (!b) return;
+    $("fAmount").value = b.dataset.n;
+    box.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b); });
+  };
+  $("fAmount").addEventListener("input", function () { box.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x.dataset.n === $("fAmount").value); }); });
+}
+function openForm(entry, scan) {
+  var isNew = !entry || !entry.id;
+  var e = Object.assign({ type: "out", date: today(), amount: "", cat: "", store: "", memo: "" }, entry || {});
+  var auto = (scan && scan.auto) || {};
+  var tag = function (k) { return auto[k] ? ' <span class="auto">自動入力</span>' : ""; };
+  openSheet(
+    '<h3>' + (isNew ? (scan ? "レシートの内容を確認" : "記録を追加") : "記録を編集") + '</h3>' +
+    (scan ? '<div class="scan" id="scanBox"' + (scan.noImage ? ' style="grid-template-columns:1fr"' : "") + '>' + (scan.noImage ? "" : '<img id="scanImg" alt="読み取ったレシート">') + '<div class="msg" id="scanMsg"></div></div>' : "") +
+    '<div class="seg" role="group" aria-label="種類"><button type="button" id="tOut">支出</button><button type="button" id="tIn">収入</button></div>' +
+    '<div class="field"><label for="fAmount">金額' + tag("total") + '</label><div class="amount-in"><span>¥</span><input id="fAmount" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="' + esc(e.amount) + '"></div><div class="pricechips" id="priceChips" hidden></div></div>' +
+    '<div class="two"><div class="field"><label for="fDate">日付' + tag("date") + '</label><input type="date" id="fDate" value="' + esc(e.date) + '"></div>' +
+    '<div class="field"><label for="fStore">店名・相手' + tag("store") + '</label><input id="fStore" value="' + esc(e.store) + '" placeholder="例：ローソン"></div></div>' +
+    '<div class="field"><label>カテゴリ' + tag("category") + '</label><div class="catpick" id="catpick"></div></div>' +
+    '<div class="field" id="itemsBox" hidden></div>' +
+    '<div class="field"><label for="fMemo">メモ</label><input id="fMemo" value="' + esc(e.memo) + '" placeholder="任意"></div>' +
+    '<p class="warn" id="formErr" hidden></p>' +
+    '<div class="actions">' + (isNew ? "" : '<button class="btn danger grow" id="del">削除</button>') +
+    '<button class="btn plain" id="cancel">閉じる</button><button class="btn primary" id="saveBtn">' + (isNew ? "記録する" : "保存") + '</button></div>'
+  );
+  var type = e.type, cat = e.cat;
+  formItems = e.items || null;
+  drawItems();
+  function drawCats() {
+    var list = type === "in" ? IN_CATS : OUT_CATS;
+    if (list.indexOf(cat) < 0) cat = type === "in" ? "バイト" : (cat && OUT_CATS.indexOf(cat) >= 0 ? cat : "食費");
+    $("catpick").innerHTML = list.map(function (c) { return '<button type="button" aria-pressed="' + (c === cat) + '" data-c="' + c + '">' + c + '</button>'; }).join("");
+    $("tOut").setAttribute("aria-pressed", type === "out"); $("tIn").setAttribute("aria-pressed", type === "in");
+  }
+  drawCats();
+  $("catpick").onclick = function (ev) { var b = ev.target.closest("button"); if (b) { cat = b.dataset.c; drawCats(); } };
+  $("tOut").onclick = function () { type = "out"; drawCats(); };
+  $("tIn").onclick = function () { type = "in"; drawCats(); };
+  $("fAmount").addEventListener("input", function () { this.value = KakeiboParse.toHalf(this.value).replace(/[^\d]/g, ""); });
+  $("cancel").onclick = closeSheet;
+  if (!isNew) $("del").onclick = function () {
+    if (this.dataset.armed) { state.entries = state.entries.filter(function (x) { return x.id !== e.id; }); save(); closeSheet(); render(); toast("削除しました"); }
+    else { this.dataset.armed = "1"; this.textContent = "本当に削除"; }
+  };
+  $("saveBtn").onclick = function () {
+    var amt = parseInt($("fAmount").value, 10), date = $("fDate").value;
+    if (!amt || amt <= 0) return showErr("金額を入力してください。");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return showErr("日付を選んでください。");
+    var rec = { id: e.id || uid(), type: type, date: date, amount: amt, cat: cat, store: $("fStore").value.trim(), memo: $("fMemo").value.trim(), receipt: !!(e.receipt || scan), card: !!e.card };
+    if (formItems && formItems.length) rec.items = formItems;
+    var i = state.entries.findIndex(function (x) { return x.id === rec.id; });
+    if (i >= 0) state.entries[i] = rec; else state.entries.push(rec);
+    save(); closeSheet();
+    cur = { y: +date.slice(0, 4), m: +date.slice(5, 7) };
+    render(); toast(isNew ? "記録しました" : "保存しました");
+  };
+  function showErr(t) { var el = $("formErr"); el.textContent = t; el.hidden = false; }
+}
+$("addBtn").onclick = function () { openForm(null); };
+
+/* ---------- アプリの自動更新（APK版） ---------- */
+var REPO_APK = "https://github.com/aoharu-png/kakeibo/raw/main/dist/PocketKakeibo.apk";
+window.__update = function (status, v) {
+  var box = $("notice"); if (!box) return;
+  var div = document.createElement("div"); div.className = "notice";
+  if (status === "updated") {
+    div.innerHTML = '<span>新しいバージョン（' + (+v) + '）を取り込みました。</span><button id="updNow">今すぐ反映</button>';
+    box.prepend(div);
+    $("updNow").onclick = function () { if (!sheetOpen) location.reload(); else toast("入力を閉じてからもう一度押してください"); };
+  } else if (status === "shell") {
+    div.innerHTML = '<span>アプリ本体の更新があります。新しいAPKを入れてください（記録はそのまま残ります）。</span><a class="link" href="' + REPO_APK + '">ダウンロード</a>';
+    box.prepend(div);
+  }
+};
+var webVersion = null;
+try { fetch("version.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j) webVersion = j.web; }).catch(function () {}); } catch (e) {}
+
+/* ---------- Claudeチャットの結果を貼り付け ---------- */
+function parsePasted(t) {
+  t = String(t || "");
+  var f = t.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (f) t = f[1];
+  var a = t.indexOf("["), o = t.indexOf("{");
+  var useArr = a >= 0 && (o < 0 || a < o);
+  var i = useArr ? a : o, j = t.lastIndexOf(useArr ? "]" : "}");
+  if (i < 0 || j < i) throw new Error("no json");
+  var d = JSON.parse(t.slice(i, j + 1));
+  if (d && !Array.isArray(d) && Array.isArray(d.receipts)) d = d.receipts;
+  return Array.isArray(d) ? d : [d];
+}
+$("pasteBtn").onclick = function () { openPaste(); };
+window.__shared = function (t) { openPaste(String(t || "")); };
+function openPaste(prefill) {
+  openSheet(
+    '<h3>読み取った文字を貼り付け</h3>' +
+    '<p class="hint"><b>Google レンズ</b>でレシートを写し、「テキスト」→「すべて選択」→「コピー」してここに貼り付けてください（アプリ版なら「共有」からこのアプリを選ぶだけ）。Claudeチャットの答えも貼り付けられます。</p>' +
+    '<div class="field"><textarea id="pText" spellcheck="false" placeholder="ここを長押しして「貼り付け」" style="min-height:160px"></textarea></div>' +
+    '<p class="warn" id="pErr" hidden></p>' +
+    '<div class="actions"><button class="btn plain" id="pClose">閉じる</button><button class="btn primary" id="pGo">読み込む</button></div>'
+  );
+  $("pClose").onclick = closeSheet;
+  $("pGo").onclick = function () { readPasted($("pText").value); };
+  if (prefill) { $("pText").value = prefill; readPasted(prefill); }
+};
+// Google レンズなどでコピーした文字、または Claude の答え（JSON）を読む
+function readPasted(raw) {
+    var list;
+    try { list = parsePasted(raw); } catch (e) { list = null; }
+    if (!list) {
+      if (!/\d/.test(raw || "")) { var er = $("pErr"); if (er) { er.textContent = "数字が見つかりませんでした。レシートの文字をコピーして貼り付けてください。"; er.hidden = false; } return; }
+      var p = KakeiboParse.parseReceipt(raw);
+      closeSheet();
+      openForm(null, { auto: {}, noImage: true });
+      applyScan({ p: p, source: "local", text: raw }, {}, function (h) { var el = $("scanMsg"); if (el) el.innerHTML = h; });
+      return;
+    }
+    var recs = list.map(function (d) { return normalizeAi(d || {}); }).filter(function (p) { return p.total || p.items.length; });
+    if (!recs.length) { var er2 = $("pErr"); er2.textContent = "金額が入ったレシートが見つかりませんでした。"; er2.hidden = false; return; }
+    if (recs.length === 1) {
+      closeSheet();
+      openForm(null, { auto: {}, noImage: true });
+      applyScan({ p: recs[0], source: "claude", text: $("pText") ? "" : JSON.stringify(list[0], null, 1) }, {}, function (h) { var el = $("scanMsg"); if (el) el.innerHTML = h; });
+      return;
+    }
+    var seen = {};
+    state.entries.forEach(function (e) { if (e.type === "out") seen[e.date + "|" + e.amount] = (seen[e.date + "|" + e.amount] || 0) + 1; });
+    var items = recs.map(function (p) {
+      var date = p.date || today(), amount = p.total || p.items.reduce(function (s, it) { return s + it.price; }, 0);
+      var k = date + "|" + amount, dup = !!seen[k]; if (dup) seen[k]--;
+      return { date: date, amount: amount, store: p.store || "", cat: p.category || KakeiboParse.guessCategory(p.store, "") || "その他", items: p.items, dup: dup, on: !dup };
+    });
+    showCardImport(items, 0, "", "claude");
+}
+
+/* ---------- receipt OCR (端末内で処理) ---------- */
+var workerP = null;
+function getWorker(onProgress) {
+  if (!workerP) {
+    var base = new URL("vendor/", location.href).href;
+    workerP = Tesseract.createWorker("jpn", 1, {
+      workerPath: base + "ocr-worker.js",
+      corePath: base + "core",
+      langPath: base + "lang",
+      gzip: true,
+      cacheMethod: "none",
+      workerBlobURL: false,
+      logger: function (m) { if (workerP && workerP._log) workerP._log(m); }
+    }).then(function (w) {
+      return w.setParameters({ tessedit_pageseg_mode: "6", preserve_interword_spaces: "1" }).then(function () { return w; });
+    });
+    workerP.catch(function () { workerP = null; });
+  }
+  workerP._log = onProgress;
+  return workerP;
+}
+/* ---------- 写真からレシート部分を切り出す ---------- */
+function loadImage(file) {
+  return new Promise(function (res, rej) {
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function () { res(img); };
+    img.onerror = function () { URL.revokeObjectURL(url); rej(new Error("画像を開けませんでした")); };
+    img.src = url;
+  });
+}
+// 明るい紙（レシート）の一番大きなかたまりを探す。見つからなければ写真全体を使う。
+function findReceiptBox(img) {
+  var W = img.naturalWidth, H = img.naturalHeight, k = Math.min(1, 500 / Math.max(W, H));
+  var w = Math.max(1, Math.round(W * k)), h = Math.max(1, Math.round(H * k));
+  var c = document.createElement("canvas"); c.width = w; c.height = h;
+  var x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(img, 0, 0, w, h);
+  var p = x.getImageData(0, 0, w, h).data, n = w * h, g = new Uint8Array(n), hist = new Uint32Array(256);
+  for (var i = 0; i < n; i++) { var v = (p[i * 4] * 299 + p[i * 4 + 1] * 587 + p[i * 4 + 2] * 114) / 1000 | 0; g[i] = v; hist[v]++; }
+  // 大津の二値化
+  var sum = 0; for (i = 0; i < 256; i++) sum += i * hist[i];
+  var sB = 0, wB = 0, best = 0, th = 128;
+  for (i = 0; i < 256; i++) { wB += hist[i]; if (!wB) continue; var wF = n - wB; if (!wF) break; sB += i * hist[i];
+    var mB = sB / wB, mF = (sum - sB) / wF, between = wB * wF * (mB - mF) * (mB - mF); if (between > best) { best = between; th = i; } }
+  var mask = new Uint8Array(n); for (i = 0; i < n; i++) mask[i] = g[i] > th ? 1 : 0;
+  // 一番大きい明るい領域（文字の黒い穴は無視して外枠だけ取る）
+  var seen = new Uint8Array(n), stack = new Int32Array(n), bestBox = null, bestCount = 0;
+  for (var start = 0; start < n; start++) {
+    if (!mask[start] || seen[start]) continue;
+    var top = 0, cnt = 0, x0 = w, y0 = h, x1 = 0, y1 = 0; stack[top++] = start; seen[start] = 1;
+    while (top) {
+      var q = stack[--top], qx = q % w, qy = (q / w) | 0; cnt++;
+      if (qx < x0) x0 = qx; if (qx > x1) x1 = qx; if (qy < y0) y0 = qy; if (qy > y1) y1 = qy;
+      if (qx > 0 && mask[q - 1] && !seen[q - 1]) { seen[q - 1] = 1; stack[top++] = q - 1; }
+      if (qx < w - 1 && mask[q + 1] && !seen[q + 1]) { seen[q + 1] = 1; stack[top++] = q + 1; }
+      if (qy > 0 && mask[q - w] && !seen[q - w]) { seen[q - w] = 1; stack[top++] = q - w; }
+      if (qy < h - 1 && mask[q + w] && !seen[q + w]) { seen[q + w] = 1; stack[top++] = q + w; }
+    }
+    if (cnt > bestCount) { bestCount = cnt; bestBox = [x0, y0, x1, y1]; }
+  }
+  if (!bestBox) return null;
+  var bw = bestBox[2] - bestBox[0] + 1, bh = bestBox[3] - bestBox[1] + 1;
+  if (bw * bh < n * 0.012 || bw < 12 || bh < 12) return null; // 小さすぎる＝レシートではない
+  if (bw > w * 0.94 && bh > h * 0.94) return null;      // ほぼ全体＝切り出す必要なし
+  var pad = Math.round(Math.max(bw, bh) * 0.03);
+  var bx = Math.max(0, bestBox[0] - pad), by = Math.max(0, bestBox[1] - pad);
+  return { x: bx / k, y: by / k, w: Math.min(w - bx, bw + pad * 2) / k, h: Math.min(h - by, bh + pad * 2) / k };
+}
+// 切り出したレシートを、Claudeに送る時に縮小されすぎない大きさの「縦の区切り」に分ける
+function receiptPieces(file, maxCount) {
+  return loadImage(file).then(function (img) {
+    var box = null;
+    try { box = findReceiptBox(img); } catch (e) { box = null; }
+    if (!box) box = { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
+    var crop = document.createElement("canvas");
+    var cs = Math.min(1, 4000 / Math.max(box.w, box.h));
+    crop.width = Math.round(box.w * cs); crop.height = Math.round(box.h * cs);
+    crop.getContext("2d").drawImage(img, box.x, box.y, box.w, box.h, 0, 0, crop.width, crop.height);
+    var W = crop.width, H = crop.height, MP = 1.15e6;
+    var n = W * H <= MP * 1.1 ? 1 : Math.max(1, Math.min(maxCount || 1, Math.ceil(H / (W * 1.4))));
+    var pieces = [], ov = n > 1 ? Math.round(H * 0.06) : 0, step = H / n;
+    for (var i = 0; i < n; i++) {
+      var y0 = Math.max(0, Math.round(i * step - ov)), y1 = Math.min(H, Math.round((i + 1) * step + ov));
+      var ph = y1 - y0, sc = Math.min(1, Math.sqrt(MP / (W * ph)));
+      var pc = document.createElement("canvas"); pc.width = Math.round(W * sc); pc.height = Math.round(ph * sc);
+      var px = pc.getContext("2d"); px.imageSmoothingQuality = "high";
+      px.drawImage(crop, 0, y0, W, ph, 0, 0, pc.width, pc.height);
+      pieces.push(pc);
+    }
+    return { crop: crop, pieces: pieces, cropped: box.x > 0 || box.y > 0 || box.w < img.naturalWidth || box.h < img.naturalHeight };
+  });
+}
+function canvasBlob(c) {
+  return new Promise(function (res) { c.toBlob(function (b) { res(b); }, "image/jpeg", 0.9); });
+}
+
+// 端末内OCR用：グレースケール＋コントラスト補正（感熱紙の薄い文字対策）
+function prepImage(src) {
+  return new Promise(function (res) {
+    var long = Math.max(src.width, src.height);
+    var s = Math.min(1, 3200 / long);
+    if (Math.min(src.width, src.height) * s < 900) s = Math.min(2.5, 900 / Math.min(src.width, src.height));
+    var c = document.createElement("canvas");
+    c.width = Math.round(src.width * s); c.height = Math.round(src.height * s);
+    var x = c.getContext("2d", { willReadFrequently: true });
+    x.drawImage(src, 0, 0, c.width, c.height);
+    var d = x.getImageData(0, 0, c.width, c.height), p = d.data, hist = new Uint32Array(256), n = p.length / 4;
+    for (var i = 0; i < p.length; i += 4) { var g = (p[i] * 299 + p[i + 1] * 587 + p[i + 2] * 114) / 1000 | 0; p[i] = g; hist[g]++; }
+    var lo = 0, hi = 255, acc = 0;
+    for (lo = 0; lo < 255; lo++) { acc += hist[lo]; if (acc > n * 0.02) break; }
+    acc = 0; for (hi = 255; hi > 0; hi--) { acc += hist[hi]; if (acc > n * 0.02) break; }
+    var span = Math.max(30, hi - lo);
+    for (i = 0; i < p.length; i += 4) { var v = (p[i] - lo) * 255 / span; v = v < 0 ? 0 : v > 255 ? 255 : v; p[i] = p[i + 1] = p[i + 2] = v; }
+    x.putImageData(d, 0, 0);
+    res({ canvas: c });
+  });
+}
+// 端末やアプリによってはスクリプトからの click() が無視されるので、ラベルを直接タップさせる
+$("scanBtn").addEventListener("click", function () { $("file").value = ""; });
+$("scanBtn").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file").value = ""; $("file").click(); } });
+$("file").addEventListener("change", function () {
+  var f = this.files && this.files[0];
+  if (f) scanReceipt(f);
+});
+/* ---------- Claude で読み取る ---------- */
+// Web版（claude.ai）: 自分のClaudeアカウントで読む。アプリ版: 設定に入れたAPIキーで読む。
+var IS_APP = location.hostname === "appassets.androidplatform.net";
+var claudeSample = null, sampleImages = false, sampleMax = 1;
+// なぜClaudeが使えないかを記録しておき、設定画面に出す
+var aiWhy = IS_APP ? "" : "checking";
+if (!IS_APP && window.claude && claude.use) {
+  claude.use("sample").then(function (s) {
+    if (!s) { aiWhy = "null"; return; }
+    return s.limits().then(function (l) {
+      if (l && l.images) { claudeSample = s; sampleImages = true; sampleMax = l.images.maxCount || 1; aiWhy = ""; updateScanLabel(); }
+      else aiWhy = "noimages";
+    }).catch(function () { aiWhy = "limits"; });
+  }).catch(function () { aiWhy = "error"; });
+} else if (!IS_APP) aiWhy = "noclaude";
+function updateScanLabel() {
+  var b = $("scanBtn"); if (b) b.lastChild.textContent = aiMode() ? "Claudeで読み取る" : "レシートを読み取る";
+}
+function aiMode() {
+  var ai = state.ai || {};
+  if (ai.off) return null;
+  if (IS_APP) return ai.key ? "api" : null;
+  return sampleImages ? "account" : null;
+}
+function aiPrompt(parts) {
+  return (parts > 1 ? "これは1枚の長い日本のレシートを、上から順に" + parts + "つに分けて撮った画像です（境目は少し重なっています。重なった行を二重に数えないでください）。" : "これは日本のレシート（または領収書）の写真です。") + "読み取って、次の形のJSONだけを返してください。\n" +
+    '{"store": "店名（支店名があれば含める）", "date": "YYYY-MM-DD", "total": 税込の支払合計（整数・円）, ' +
+    '"items": [{"name": "品名", "price": 金額（整数・円、値引きは負の数）}], "category": "' + OUT_CATS.join("|") + '" のどれか1つ, "note": "読めなかった所など（なければ空文字）"}\n' +
+    "ルール: totalは「合計」「お会計」など実際に支払った額（お預り・お釣り・ポイント・小計ではない）。" +
+    "令和の年号は西暦に直す（令和8年=2026年）。読めない項目は null。数字はかすれていても前後の文脈（品目の合計と合計欄の一致など）から最も確からしい値を選ぶ。" +
+    "categoryは店の種類で決める（コンビニやスーパー=食費、飲食店=外食、ドラッグストアや100円ショップ=日用品）。";
+}
+function extractJson(t) {
+  t = String(t || "");
+  var f = t.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (f) t = f[1];
+  var i = t.indexOf("{"), j = t.lastIndexOf("}");
+  if (i < 0 || j < i) throw new Error("読み取り結果を解釈できませんでした");
+  return JSON.parse(t.slice(i, j + 1));
+}
+function aiRead(pieces, signal) {
+  var mode = aiMode();
+  if (mode === "account") {
+    var use = pieces.slice(0, sampleMax);
+    return Promise.all(use.map(canvasBlob)).then(function (blobs) {
+      return claudeSample.json(aiPrompt(blobs.length), { images: blobs, signal: signal, cache: false, modelTier: "complex" });
+    });
+  }
+  // アプリ版：Claude API を直接呼ぶ（キーはこの端末にだけ保存）
+  var use2 = pieces.slice(0, 5);
+  var content = use2.map(function (c) {
+    return { type: "image", source: { type: "base64", media_type: "image/jpeg", data: c.toDataURL("image/jpeg", 0.9).split(",")[1] } };
+  });
+  content.push({ type: "text", text: aiPrompt(use2.length) });
+  return fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST", signal: signal,
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": state.ai.key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({ model: state.ai.model || "claude-sonnet-5-5", max_tokens: 3000, messages: [{ role: "user", content: content }] })
+  }).then(function (r) {
+    return r.json().then(function (j) {
+      if (!r.ok) {
+        var m = (j && j.error && j.error.message) || ("HTTP " + r.status);
+        if (r.status === 401) m = "APIキーが正しくありません";
+        else if (r.status === 429) m = "利用上限に達しました。少し待ってからもう一度";
+        else if (r.status === 400 && /credit/i.test(m)) m = "APIのクレジット残高が足りません";
+        throw new Error(m);
+      }
+      return extractJson((j.content || []).map(function (c) { return c.text || ""; }).join(""));
+    });
+  });
+}
+function normalizeAi(d) {
+  var num = function (v) { var n = parseInt(String(v == null ? "" : v).replace(/[^\d-]/g, ""), 10); return isFinite(n) ? n : null; };
+  var items = Array.isArray(d.items) ? d.items.map(function (it) { return { name: String(it && it.name || "").slice(0, 30), price: num(it && it.price) }; })
+    .filter(function (it) { return it.name && it.price !== null; }).slice(0, 60) : [];
+  var total = num(d.total);
+  var date = /^\d{4}-\d{2}-\d{2}$/.test(d.date || "") ? d.date : null;
+  return {
+    total: total && total > 0 ? total : null, totalSure: !!total, date: date,
+    store: d.store ? String(d.store).slice(0, 40) : null,
+    category: OUT_CATS.indexOf(d.category) >= 0 ? d.category : null,
+    items: items,
+    candidates: total ? [total] : [],
+    note: d.note ? String(d.note) : ""
+  };
+}
+
+function scanReceipt(file) {
+  var job = { cancelled: false, ctl: window.AbortController ? new AbortController() : null }; ocrAbort = job;
+  openForm(null, { auto: {} });
+  var msg = function (h) { var el = $("scanMsg"); if (el && !job.cancelled) el.innerHTML = h; };
+  $("saveBtn").disabled = true;
+  msg('<span>レシートの部分を探しています…</span><div class="bar"><i style="width:8%"></i></div>');
+  var mode = aiMode();
+  receiptPieces(file, mode === "account" ? sampleMax : mode === "api" ? 5 : 1).then(function (rp) {
+    if ($("scanImg")) $("scanImg").src = rp.crop.toDataURL("image/jpeg", 0.6);
+    job.rp = rp;
+    if (!mode) return ocrLocal(rp.crop, job, msg);
+    msg('<span>Claudeが読み取っています…（' + (mode === "account" ? "30秒〜1分" : "10〜30秒") + 'ほど）' + (rp.pieces.length > 1 ? "<br>長いレシートなので" + rp.pieces.length + "つに分けて読んでいます。" : "") + '</span><div class="bar"><i style="width:35%"></i></div>');
+    return aiRead(rp.pieces, job.ctl && job.ctl.signal).then(function (d) {
+      var p = normalizeAi(d || {});
+      if (!p.total && !p.items.length) throw new Error("金額を読み取れませんでした");
+      return { p: p, source: "claude", text: JSON.stringify(d, null, 1) };
+    }).catch(function (err) {
+      if (job.cancelled) throw err;
+      var why = err && (err.message || err.code) || "";
+      if (err && err.code === "not_granted") why = "Claudeの利用が許可されませんでした";
+      else if (err && err.code === "rate_limited") why = "Claudeの利用上限に達しました";
+      job.aiError = why;
+      return ocrLocal(rp.crop, job, msg);
+    });
+  }).then(function (res) {
+    if (job.cancelled) return;
+    applyScan(res, job, msg);
+  }).catch(function (err) {
+    if (job.cancelled) return;
+    msg('<span class="warn">読み取りに失敗しました（' + esc(err && err.message || err) + '）。明るい場所で、レシート全体が写るように撮り直してください。手入力で記録することもできます。</span>');
+    if ($("saveBtn")) $("saveBtn").disabled = false;
+  });
+}
+
+function ocrLocal(src, job, msg) {
+  msg('<span>' + (job.aiError ? "Claudeで読めなかったため（" + esc(job.aiError) + "）、端末内で読み取ります…" : "レシートを読み込んでいます…") + '</span><div class="bar"><i style="width:4%"></i></div>');
+  return prepImage(src).then(function (pr) {
+    return getWorker(function (m) {
+      var pct = Math.round((m.progress || 0) * 100);
+      var label = m.status === "recognizing text" ? "文字を読み取り中 " + pct + "%" : "読み取りの準備中…";
+      msg('<span>' + label + '</span><div class="bar"><i style="width:' + (m.status === "recognizing text" ? 20 + pct * 0.8 : 10) + '%"></i></div>');
+    }).then(function (w) {
+      // 1回目：ブロック全体として読む（傾いた写真でも右端の金額列を落としにくい）
+      return w.setParameters({ tessedit_pageseg_mode: "6" }).then(function () { return w.recognize(pr.canvas); }).then(function (r1) {
+        var p1 = KakeiboParse.parseReceipt(r1.data.text || "");
+        if (job.cancelled || (p1.total && p1.candidates.length)) return { text: r1.data.text || "", p: p1, source: "local" };
+        msg('<span>金額を探しています（もう一度読み取り中）…</span><div class="bar"><i style="width:70%"></i></div>');
+        return w.setParameters({ tessedit_pageseg_mode: "4" }).then(function () { return w.recognize(pr.canvas); }).then(function (r2) {
+          var p2 = KakeiboParse.parseReceipt(r2.data.text || "");
+          var score = function (p) { return (p.total ? 2 : 0) + (p.totalSure ? 2 : 0) + p.candidates.length + p.items.length; };
+          return score(p2) > score(p1) ? { text: r2.data.text || "", p: p2, source: "local" } : { text: r1.data.text || "", p: p1, source: "local" };
+        });
+      });
+    });
+  });
+}
+
+function applyScan(res, job, msg) {
+  var p = res.p, text = res.text;
+  var auto = {};
+  if (p.total) { $("fAmount").value = p.total; auto.total = 1; }
+  if (p.date) { $("fDate").value = p.date; auto.date = 1; }
+  if (p.store) { $("fStore").value = p.store; auto.store = 1; }
+  if (p.category) { var b = document.querySelector('#catpick button[data-c="' + p.category + '"]'); if (b) b.click(); auto.category = 1; }
+  ["total", "date", "store", "category"].forEach(function (k) {
+    if (!auto[k]) return;
+    var lab = { total: "fAmount", date: "fDate", store: "fStore" }[k];
+    var el = lab ? document.querySelector('label[for="' + lab + '"]') : document.querySelector("#catpick").previousElementSibling;
+    if (el && !el.querySelector(".auto")) el.insertAdjacentHTML("beforeend", ' <span class="auto">自動入力</span>');
+  });
+  formItems = p.items && p.items.length ? p.items : null;
+  drawItems();
+  if (res.source === "local") drawPriceChips(p.candidates);
+  var notes = [];
+  var who = res.source === "claude" ? "Claudeが読み取りました" : "読み取りました";
+  if (!p.total) notes.push('<span class="warn">合計金額が見つかりませんでした。' + (res.source === "local" ? "下の金額から選ぶか、" : "") + '入力してください。</span>');
+  else if (!p.totalSure) notes.push('<span class="warn">「合計」の行が読めなかったので推測です。違っていたら下の金額から選んでください。</span>');
+  else notes.push("<span>" + who + "。内容を確かめて記録してください。</span>");
+  if (p.note) notes.push('<span class="hint">メモ：' + esc(p.note) + '</span>');
+  if (res.source === "local" && job.aiError) notes.push('<span class="hint">Claudeでは読めませんでした（' + esc(job.aiError) + '）。端末内の読み取り結果です。</span>');
+  if (res.source === "local" && !aiMode() && job.rp) notes.push('<span class="hint">うまく読めない時は、Google レンズで文字を読み取って「貼り付け」から入れると正確です。</span>');
+  msg(notes.join("") + '<details><summary>' + (res.source === "claude" ? "読み取り結果（データ）を見る" : "読み取ったテキストを見る") + '</summary><pre>' + esc(String(text || "").trim() || "（文字が見つかりませんでした）") + '</pre></details>');
+  $("saveBtn").disabled = false;
+  if (!p.total) $("fAmount").focus();
+}
+
+/* ---------- settings & backup ---------- */
+function aiSettingsHtml() {
+  var ai = state.ai || {};
+  var on = !ai.off;
+  var head = '<div class="field"><label>Claudeでレシートを読む</label>';
+  if (!IS_APP) {
+    return head + '<p class="hint">' + (sampleImages
+      ? "かすれた・くしゃくしゃのレシートも、Claudeが読み取ります。あなたのClaudeの利用分を使い、初回だけ許可を求められます。写真は読み取りのためにだけ送られ、記録はこの端末にだけ保存されます。"
+      : "この開き方ではClaudeを使えないため、端末内の読み取りになっています。<b>Claudeアプリ</b>の中でこのページを開くと使えます。") + '</p>' +
+      (sampleImages ? "" : '<p class="hint">状態：' + ({ noclaude: "Claudeの画面の外で開かれています", "null": "このページからClaudeを呼べません（開き方の制限）", noimages: "この画面では写真をClaudeに送れません", limits: "Claudeの設定を確認できませんでした", error: "Claudeに接続できませんでした", checking: "確認中…（数秒後にもう一度開いてください）" }[aiWhy] || aiWhy) + '</p>') +
+      (sampleImages ? '<label class="switch"><input type="checkbox" id="aiOn"' + (on ? " checked" : "") + '> Claudeで読み取る（オフにすると端末内だけで読み取り）</label>' : "") + '</div>';
+  }
+  return head + '<p class="hint">Anthropic の APIキーを入れると、かすれたレシートもClaudeが読み取ります。料金はAPIの従量課金で、1枚あたり1〜2円ほどです。キーは <b>console.anthropic.com</b> で作れます。写真は読み取りのためにだけ送られ、キーと記録はこの端末にだけ保存されます。</p>' +
+    '<input id="aiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-..." value="' + esc(ai.key || "") + '" style="width:100%;border:1px solid var(--rule);background:var(--paper);border-radius:10px;padding:10px 12px">' +
+    '<div class="two"><select id="aiModel" style="border:1px solid var(--rule);background:var(--paper);border-radius:10px;padding:10px 12px">' +
+    '<option value="claude-sonnet-5-5"' + (ai.model !== "claude-haiku-4-5-20251001" ? " selected" : "") + '>Sonnet 5.5（正確・おすすめ）</option>' +
+    '<option value="claude-haiku-4-5-20251001"' + (ai.model === "claude-haiku-4-5-20251001" ? " selected" : "") + '>Haiku 4.5（速い・安い）</option></select>' +
+    '<button class="btn primary" id="aiSave" type="button">保存</button></div>' +
+    (ai.key ? '<label class="switch"><input type="checkbox" id="aiOn"' + (on ? " checked" : "") + '> Claudeで読み取る</label>' : "") +
+    '<p class="hint" id="aiMsg"></p></div>';
+}
+function bindAiSettings() {
+  var ai = state.ai = state.ai || {};
+  if ($("aiOn")) $("aiOn").onchange = function () { ai.off = !this.checked; save(); updateScanLabel(); toast(this.checked ? "Claudeで読み取ります" : "端末内だけで読み取ります"); };
+  if ($("aiSave")) $("aiSave").onclick = function () {
+    var k = $("aiKey").value.trim();
+    if (k && !/^sk-ant-/.test(k)) { $("aiMsg").textContent = "APIキーは「sk-ant-」で始まる文字列です。コピーし直してください。"; return; }
+    ai.key = k; ai.model = $("aiModel").value; if (k) ai.off = false;
+    save(); updateScanLabel(); $("aiMsg").textContent = k ? "保存しました。次のレシートからClaudeが読み取ります。" : "キーを消しました。端末内で読み取ります。";
+  };
+}
+
+function openSettings() {
+  openSheet(
+    '<h3>設定</h3>' +
+    aiSettingsHtml() +
+    '<hr style="border:0;border-top:1px solid var(--rule);width:100%">' +
+    '<div class="field"><label>カード明細の取り込み</label>' +
+    '<p class="hint">カード会社のサイトやアプリ（楽天e-NAVI、Vpass、MyJCB など）から明細をCSVでダウンロードし、ここで選んでください。ファイルはこの端末の中だけで読み込みます。</p></div>' +
+    '<div class="actions"><label class="btn primary" id="sCard" for="csvFile" role="button" tabindex="0">明細CSVを選ぶ</label></div>' +
+    '<hr style="border:0;border-top:1px solid var(--rule);width:100%">' +
+    '<div class="field"><label for="sBudget">月の予算（円）</label><div class="amount-in"><span>¥</span><input id="sBudget" inputmode="numeric" value="' + (state.budget || "") + '" placeholder="0 で予算なし"></div></div>' +
+    '<div class="actions"><button class="btn primary" id="sSave">予算を保存</button></div>' +
+    '<hr style="border:0;border-top:1px solid var(--rule);width:100%">' +
+    '<div class="field"><label for="sData">バックアップ（記録はこの端末の中だけに保存されています）</label>' +
+    '<textarea id="sData" spellcheck="false" placeholder="ここに書き出したデータを貼り付けると読み込めます"></textarea></div>' +
+    '<p class="hint">機種変更の前に「書き出す」でコピーし、メモ帳などに保管してください。</p>' +
+    '<div class="actions"><button class="btn ghost" id="sExport">書き出してコピー</button><button class="btn ghost" id="sCsv">CSVでコピー</button><button class="btn ghost" id="sImport">貼り付けた内容を読み込む</button></div>' +
+    '<p class="warn" id="sMsg" hidden></p>' +
+    '<div class="actions"><button class="btn danger grow" id="sWipe">すべての記録を消す</button><button class="btn plain" id="sClose">閉じる</button></div>' +
+    (webVersion ? '<p class="hint">ポケット家計簿 バージョン ' + webVersion + (IS_APP ? "（起動時に自動で更新を確認します）" : "") + '</p>' : "")
+  );
+  $("sClose").onclick = closeSheet;
+  bindAiSettings();
+  $("sCard").addEventListener("click", function () { $("csvFile").value = ""; });
+  $("sBudget").addEventListener("input", function () { this.value = KakeiboParse.toHalf(this.value).replace(/[^\d]/g, ""); });
+  $("sSave").onclick = function () { state.budget = parseInt($("sBudget").value, 10) || 0; save(); render(); toast("予算を保存しました"); };
+  function copy(text, okMsg) {
+    $("sData").value = text;
+    var done = function () { toast(okMsg); };
+    var fallback = function () { $("sData").focus(); $("sData").select(); try { document.execCommand("copy"); done(); } catch (e) { say("テキストを長押ししてコピーしてください。"); } };
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+  }
+  function say(t) { var el = $("sMsg"); el.textContent = t; el.hidden = false; }
+  var real = function () { return state.entries.filter(function (e) { return !e.sample; }); };
+  $("sExport").onclick = function () { copy(JSON.stringify({ app: "kakeibo", v: 1, budget: state.budget, entries: real() }), "コピーしました"); };
+  $("sCsv").onclick = function () {
+    var rows = [["日付", "種類", "カテゴリ", "金額", "店名", "メモ"]].concat(real().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).map(function (e) {
+      return [e.date, e.type === "in" ? "収入" : "支出", e.cat, e.amount, e.store, e.memo];
+    }));
+    copy(rows.map(function (r) { return r.map(function (c) { c = String(c == null ? "" : c); return /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; }).join(","); }).join("\n"), "CSVをコピーしました");
+  };
+  $("sImport").onclick = function () {
+    try {
+      var d = JSON.parse($("sData").value);
+      if (!d || !Array.isArray(d.entries)) throw 0;
+      var ids = {}; state.entries.forEach(function (e) { ids[e.id] = 1; });
+      var added = 0;
+      d.entries.forEach(function (e) {
+        if (!e || !e.date || !e.amount) return;
+        if (!e.id || ids[e.id]) { if (ids[e.id]) return; e.id = uid(); }
+        delete e.sample; state.entries.push(e); added++;
+      });
+      state.entries = state.entries.filter(function (e) { return !e.sample || !added; });
+      if (d.budget && !state.budget) state.budget = d.budget;
+      save(); render(); say(added + "件を読み込みました。");
+    } catch (e) { say("読み込めませんでした。「書き出してコピー」で作ったデータをそのまま貼り付けてください。"); }
+  };
+  $("sWipe").onclick = function () {
+    if (this.dataset.armed) { state.entries = []; save(); render(); closeSheet(); toast("すべて消しました"); }
+    else { this.dataset.armed = "1"; this.textContent = "本当にすべて消す"; }
+  };
+}
+$("settings").onclick = openSettings;
+
+/* ---------- card statement CSV import ---------- */
+function decodeCsv(buf) {
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(buf); }
+  catch (e) { try { return new TextDecoder("shift_jis").decode(buf); } catch (e2) { return new TextDecoder("utf-8").decode(buf); } }
+}
+$("csvFile").addEventListener("change", function () {
+  var f = this.files && this.files[0];
+  if (!f) return;
+  f.arrayBuffer().then(function (buf) {
+    var res = KakeiboParse.parseCardCsv(decodeCsv(buf));
+    var seen = {};
+    state.entries.forEach(function (e) { if (e.type === "out") seen[e.date + "|" + e.amount] = (seen[e.date + "|" + e.amount] || 0) + 1; });
+    var items = res.items.map(function (it) {
+      var k = it.date + "|" + it.amount, dup = !!seen[k];
+      if (dup) seen[k]--;
+      return { date: it.date, amount: it.amount, store: it.store, cat: KakeiboParse.guessCategory(it.store, "") || "その他", dup: dup, on: !dup };
+    });
+    showCardImport(items, res.skipped, f.name);
+  }).catch(function () { toast("ファイルを開けませんでした"); });
+});
+function showCardImport(items, skipped, name, from) {
+  from = from || "card";
+  if (!items.length) {
+    openSheet('<h3>カード明細の取り込み</h3><p class="warn">「' + esc(name) + '」から利用明細を見つけられませんでした。カード会社のサイトでCSV形式を選んでダウンロードしたファイルか確かめてください。</p><div class="actions"><button class="btn plain" id="cClose">閉じる</button></div>');
+    $("cClose").onclick = closeSheet; return;
+  }
+  function draw() {
+    var on = items.filter(function (i) { return i.on; });
+    var sum = on.reduce(function (s, i) { return s + i.amount; }, 0);
+    var dups = items.filter(function (i) { return i.dup; }).length;
+    openSheet(
+      '<h3>' + (from === "claude" ? "Claudeが読んだレシート" : "カード明細の取り込み") + '</h3>' +
+      '<p class="hint">' + items.length + '件見つかりました。' + (dups ? dups + '件は同じ日・同じ金額の記録がすでにあるため、外してあります（レシートで記録済みの可能性）。' : "") + (skipped ? "返金・取消の" + skipped + "件は除きました。" : "") + 'チェックした分だけ「支出」として追加します。</p>' +
+      '<div class="ledger" style="box-shadow:none;border:1px solid var(--rule);max-height:46vh;overflow:auto">' +
+      items.map(function (it, i) {
+        return '<label class="row" style="cursor:pointer"><input type="checkbox" data-i="' + i + '"' + (it.on ? " checked" : "") + '>' +
+          '<span class="what"><b>' + esc(it.store || "（店名なし）") + '</b><small>' + (+it.date.slice(5, 7)) + '/' + (+it.date.slice(8)) + ' · ' + esc(it.cat) + (it.dup ? ' · <span class="neg">重複の可能性</span>' : "") + '</small></span>' +
+          '<span class="amt num">' + yen(it.amount) + '</span></label>';
+      }).join("") + '</div>' +
+      '<div class="actions"><button class="btn plain grow" id="cClose">やめる</button><button class="btn primary" id="cGo"' + (on.length ? "" : " disabled") + '>' + on.length + '件・' + yen(sum) + '円を追加</button></div>'
+    );
+    document.querySelectorAll('.panel input[type="checkbox"]').forEach(function (cb) {
+      cb.onchange = function () { items[+cb.dataset.i].on = cb.checked; var y = document.querySelector(".panel .ledger").scrollTop; draw(); document.querySelector(".panel .ledger").scrollTop = y; };
+    });
+    $("cClose").onclick = closeSheet;
+    $("cGo").onclick = function () {
+      var add = items.filter(function (i) { return i.on; });
+      add.forEach(function (i) {
+        var e = { id: uid(), type: "out", date: i.date, amount: i.amount, cat: i.cat, store: i.store, memo: "" };
+        if (from === "claude") { e.receipt = true; if (i.items && i.items.length) e.items = i.items; } else e.card = true;
+        state.entries.push(e);
+      });
+      state.entries = state.entries.filter(function (e) { return !e.sample; });
+      save();
+      var last = add.map(function (i) { return i.date; }).sort().pop();
+      cur = { y: +last.slice(0, 4), m: +last.slice(5, 7) };
+      closeSheet(); render(); toast(add.length + "件を追加しました");
+    };
+  }
+  draw();
+}
+
+if (firstRun) save();
+updateScanLabel();
+render();
+})();
+</script>
